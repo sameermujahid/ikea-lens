@@ -1,0 +1,801 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Property Visual Search</title>
+    <link href="https://fonts.googleapis.com/css2?family=Google+Sans:wght@400;500;700&family=Roboto:wght@300;400;500&display=swap" rel="stylesheet">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Roboto', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            background: #fff;
+            color: #202124;
+            overflow-x: hidden;
+        }
+
+        /* Header */
+        .header {
+            display: flex;
+            align-items: center;
+            padding: 12px 24px;
+            border-bottom: 1px solid #e8eaed;
+            background: #fff;
+            position: sticky;
+            top: 0;
+            z-index: 100;
+        }
+
+        .logo {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-family: 'Google Sans', sans-serif;
+            font-size: 22px;
+            color: #5f6368;
+            font-weight: 400;
+        }
+
+        .logo-icon {
+            width: 28px;
+            height: 28px;
+            background: linear-gradient(135deg, #4285f4, #34a853, #fbbc04, #ea4335);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-weight: bold;
+        }
+
+        .status-bar {
+            margin-left: auto;
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            font-size: 13px;
+            color: #5f6368;
+        }
+
+        .status-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            display: inline-block;
+            margin-right: 6px;
+        }
+
+        .status-ready { background: #34a853; }
+        .status-loading { background: #fbbc04; animation: pulse 1.5s ease-in-out infinite; }
+        .status-error { background: #ea4335; }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+
+        /* Main Container */
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 40px 24px;
+        }
+
+        /* Persistent Search Bar */
+        .persistent-search {
+            max-width: 680px;
+            margin: 0 auto 40px;
+        }
+
+        .search-box-wrapper {
+            position: relative;
+        }
+
+        .search-box {
+            width: 100%;
+            max-width: 584px;
+            margin: 0 auto;
+            position: relative;
+            background: #fff;
+            border: 1px solid #dfe1e5;
+            border-radius: 24px;
+            transition: box-shadow 0.2s ease, border-color 0.2s ease;
+            overflow: hidden;
+        }
+
+        .search-box:hover {
+            box-shadow: 0 1px 6px rgba(32,33,36,.28);
+            border-color: rgba(223,225,229,0);
+        }
+
+        .search-box.drag-over {
+            border: 2px dashed #4285f4;
+            background: #f1f3f4;
+        }
+
+        .search-input-container {
+            display: flex;
+            align-items: center;
+            padding: 12px 16px;
+        }
+
+        .camera-icon {
+            width: 24px;
+            height: 24px;
+            cursor: pointer;
+            position: relative;
+        }
+
+        .camera-icon svg {
+            width: 24px;
+            height: 24px;
+            fill: #4285f4;
+        }
+
+        .search-input {
+            flex: 1;
+            border: none;
+            outline: none;
+            font-size: 16px;
+            padding: 0 16px;
+            color: #202124;
+            font-family: 'Roboto', sans-serif;
+        }
+
+        .search-input::placeholder {
+            color: #5f6368;
+        }
+
+        input[type="file"] {
+            display: none;
+        }
+
+        /* Upload Prompt (always visible below search bar) */
+        .upload-container {
+            max-width: 680px;
+            margin: 0 auto 60px;
+            text-align: center;
+        }
+
+        .upload-title {
+            font-family: 'Google Sans', sans-serif;
+            font-size: 28px;
+            color: #202124;
+            margin-bottom: 12px;
+            font-weight: 400;
+        }
+
+        .upload-subtitle {
+            color: #5f6368;
+            font-size: 14px;
+            margin-bottom: 32px;
+        }
+
+        .drop-zone {
+            display: block; /* Always visible now */
+            padding: 60px 24px;
+            border: 2px dashed #dadce0;
+            border-radius: 16px;
+            margin: 24px 0;
+            text-align: center;
+            transition: all 0.3s ease;
+            cursor: pointer;
+            background: #f8f9fa;
+        }
+
+        .drop-zone:hover {
+            border-color: #4285f4;
+            background: #f1f3f4;
+        }
+
+        .drop-zone.drag-over {
+            border-color: #4285f4;
+            background: #e8f0fe;
+            transform: scale(1.02);
+        }
+
+        .drop-icon {
+            font-size: 48px;
+            margin-bottom: 16px;
+            color: #5f6368;
+        }
+
+        .drop-text {
+            font-size: 16px;
+            color: #202124;
+            margin-bottom: 8px;
+        }
+
+        .drop-subtext {
+            font-size: 13px;
+            color: #5f6368;
+        }
+
+        .upload-actions {
+            display: flex;
+            gap: 12px;
+            justify-content: center;
+            margin-top: 24px;
+        }
+
+        .btn {
+            padding: 10px 24px;
+            border-radius: 20px;
+            border: none;
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            font-family: 'Google Sans', sans-serif;
+        }
+
+        .btn-primary {
+            background: #4285f4;
+            color: #fff;
+        }
+
+        .btn-primary:hover:not(:disabled) {
+            background: #1a73e8;
+            box-shadow: 0 1px 3px rgba(0,0,0,.12), 0 1px 2px rgba(0,0,0,.24);
+        }
+
+        .btn-secondary {
+            background: #fff;
+            color: #5f6368;
+            border: 1px solid #dadce0;
+        }
+
+        .btn-secondary:hover {
+            background: #f8f9fa;
+            border-color: #dadce0;
+        }
+
+        .btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        /* Preview Section */
+        .preview-container {
+            display: none;
+            max-width: 680px;
+            margin: 40px auto;
+        }
+
+        .preview-container.active {
+            display: block;
+            animation: fadeIn 0.3s ease;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .preview-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 16px;
+        }
+
+        .preview-title {
+            font-size: 18px;
+            color: #202124;
+            font-weight: 500;
+        }
+
+        .preview-image-wrapper {
+            width: 200px;
+            height: 200px;
+            border-radius: 12px;
+            overflow: hidden;
+            margin: 0 auto 24px;
+            box-shadow: 0 1px 3px rgba(60,64,67,.3), 0 4px 8px 3px rgba(60,64,67,.15);
+        }
+
+        .preview-image {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+
+        /* Results Section */
+        .results-container {
+            display: none;
+            margin-top: 60px;
+            max-width: 1200px;
+            margin-left: auto;
+            margin-right: auto;
+        }
+
+        .results-container.active {
+            display: block;
+            animation: fadeIn 0.4s ease;
+        }
+
+        .results-header {
+            padding: 16px 0;
+            border-bottom: 1px solid #e8eaed;
+            margin-bottom: 24px;
+        }
+
+        .results-title {
+            font-size: 20px;
+            color: #202124;
+            font-weight: 400;
+        }
+
+        .results-count {
+            font-size: 14px;
+            color: #5f6368;
+            margin-top: 4px;
+        }
+
+        /* Image Grid - Google Images Style */
+        .image-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+            gap: 8px;
+            padding: 0;
+        }
+
+        .image-card {
+            position: relative;
+            background: #fff;
+            border-radius: 8px;
+            overflow: hidden;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            break-inside: avoid;
+        }
+
+        .image-card:hover {
+            box-shadow: 0 4px 12px rgba(0,0,0,.12);
+            transform: translateY(-2px);
+        }
+
+        .image-card-image-wrapper {
+            position: relative;
+            width: 100%;
+            padding-bottom: 100%;
+            overflow: hidden;
+            background: #f8f9fa;
+        }
+
+        .image-card-image {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            transition: transform 0.3s ease;
+        }
+
+        .image-card:hover .image-card-image {
+            transform: scale(1.05);
+        }
+
+        .image-card-info {
+            padding: 12px;
+            background: #fff;
+        }
+
+        .image-card-category {
+            font-size: 12px;
+            color: #5f6368;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 4px;
+        }
+
+        .image-card-similarity {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 13px;
+            color: #202124;
+        }
+
+        .similarity-bar {
+            flex: 1;
+            height: 4px;
+            background: #e8eaed;
+            border-radius: 2px;
+            overflow: hidden;
+        }
+
+        .similarity-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #34a853, #fbbc04);
+            border-radius: 2px;
+            transition: width 0.5s ease;
+        }
+
+        .rank-badge {
+            position: absolute;
+            top: 8px;
+            left: 8px;
+            background: rgba(0,0,0,0.7);
+            color: #fff;
+            padding: 4px 8px;
+            border-radius: 12px;
+            font-size: 12px;
+            font-weight: 500;
+            z-index: 1;
+        }
+
+        /* Loading Spinner */
+        .loading-spinner {
+            display: none;
+            margin: 80px auto;
+            text-align: center;
+        }
+
+        .loading-spinner.active {
+            display: block;
+        }
+
+        .spinner {
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid #4285f4;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 16px;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .loading-text {
+            color: #5f6368;
+            font-size: 14px;
+        }
+
+        /* Error Message */
+        .error-message {
+            display: none;
+            max-width: 680px;
+            margin: 24px auto;
+            padding: 16px;
+            background: #fce8e6;
+            border: 1px solid #ea4335;
+            border-radius: 8px;
+            color: #c5221f;
+            font-size: 14px;
+        }
+
+        .error-message.active {
+            display: block;
+            animation: fadeIn 0.3s ease;
+        }
+
+        /* Responsive */
+        @media (max-width: 768px) {
+            .container {
+                padding: 24px 16px;
+            }
+
+            .upload-container {
+                margin: 40px auto;
+            }
+
+            .image-grid {
+                grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+                gap: 6px;
+            }
+
+            .search-box {
+                border-radius: 20px;
+            }
+        }
+
+        /* Status Progress Bar */
+        .progress-container {
+            display: none;
+            max-width: 680px;
+            margin: 16px auto;
+            padding: 12px 16px;
+            background: #f8f9fa;
+            border-radius: 8px;
+        }
+
+        .progress-container.active {
+            display: block;
+        }
+
+        .progress-text {
+            font-size: 13px;
+            color: #5f6368;
+            margin-bottom: 8px;
+        }
+
+        .progress-bar-track {
+            height: 4px;
+            background: #e8eaed;
+            border-radius: 2px;
+            overflow: hidden;
+        }
+
+        .progress-bar-fill {
+            height: 100%;
+            background: #4285f4;
+            border-radius: 2px;
+            transition: width 0.5s ease;
+        }
+    </style>
+</head>
+<body>
+    <!-- Header -->
+    <div class="header">
+        <div class="logo">
+            <div class="logo-icon">🏠</div>
+            <span>Property Visual Search</span>
+        </div>
+        <div class="status-bar">
+            <div id="status-indicators">
+                <span class="status-dot status-loading"></span>Initializing...
+            </div>
+        </div>
+    </div>
+
+    <!-- Main Container -->
+    <div class="container">
+        <!-- Progress Bar -->
+        <div class="progress-container" id="progress-container">
+            <div class="progress-text" id="progress-text">Loading system components...</div>
+            <div class="progress-bar-track">
+                <div class="progress-bar-fill" id="progress-bar-fill" style="width: 0%"></div>
+            </div>
+        </div>
+
+        <!-- Persistent Search Bar -->
+<!-- Upload Prompt (always visible) -->
+<div class="upload-container" id="upload-section">
+    <h1 class="upload-title">Search furniture with an image</h1>
+    <p class="upload-subtitle">Upload or drag and drop an image to find similar furniture</p>
+
+    <!-- Drop Zone (always visible) -->
+    <div class="drop-zone" id="drop-zone" onclick="document.getElementById('file-input').click()">
+        <div class="drop-icon">📷</div>
+        <div class="drop-text">Click to upload / Drag and drop image</div>
+        <div class="drop-subtext">Supports JPG, PNG, WEBP</div>
+    </div>
+</div>
+
+        <input type="file" id="file-input" accept="image/*">
+
+        <!-- Preview Section -->
+        <div class="preview-container" id="preview-section">
+            <div class="preview-header">
+                <div class="preview-title">Search image</div>
+                <button class="btn btn-secondary" onclick="resetSearch()">New search</button>
+            </div>
+            <div class="preview-image-wrapper">
+                <img id="preview-image" class="preview-image" alt="Preview">
+            </div>
+            <button class="btn btn-primary" id="search-btn" style="display: block; margin: 0 auto;" onclick="performSearch()">
+                Find similar furniture
+            </button>
+        </div>
+
+        <!-- Loading Spinner -->
+        <div class="loading-spinner" id="loading-spinner">
+            <div class="spinner"></div>
+            <div class="loading-text">Searching for similar furniture...</div>
+        </div>
+
+        <!-- Error Message -->
+        <div class="error-message" id="error-message"></div>
+
+        <!-- Results Section -->
+        <div class="results-container" id="results-section">
+            <div class="results-header">
+                <h2 class="results-title">Similar furniture</h2>
+                <div class="results-count" id="results-count">10 results</div>
+            </div>
+            <div class="image-grid" id="image-grid"></div>
+        </div>
+    </div>
+    <script>
+        let uploadedFile = null;
+        let systemReady = false;
+        let allResults = [];
+        let visibleCount = 10;
+        
+        // --------------------
+        // STATUS CHECK
+        // --------------------
+        function checkStatus() {
+            fetch('/status')
+                .then(res => res.json())
+                .then(data => {
+                    const statusIndicators = document.getElementById('status-indicators');
+                    const progressContainer = document.getElementById('progress-container');
+                    const progressText = document.getElementById('progress-text');
+                    const progressFill = document.getElementById('progress-bar-fill');
+        
+                    if (data.can_search) {
+                        systemReady = true;
+                        statusIndicators.innerHTML =
+                            '<span class="status-dot status-ready"></span>Ready';
+                        progressContainer.classList.remove('active');
+                    } else {
+                        progressContainer.classList.add('active');
+                        progressText.textContent = data.initialization_status;
+                        progressFill.style.width = data.initialization_progress + "%";
+                    }
+                });
+        }
+        
+        checkStatus();
+        setInterval(checkStatus, 5000);
+        
+        // --------------------
+        // FORMAT CATEGORY
+        // --------------------
+        function formatCategory(text) {
+            if (!text) return "";
+            return text
+                .replace(/_/g, " ")
+                .replace(/\b\w/g, c => c.toUpperCase());
+        }
+        
+        // --------------------
+        // FILE UPLOAD
+        // --------------------
+        document.getElementById("file-input").addEventListener("change", function (e) {
+            const file = e.target.files[0];
+            if (file && file.type.startsWith("image/")) {
+                handleImageUpload(file);
+            }
+        });
+        
+        function handleImageUpload(file) {
+            if (!systemReady) {
+                showError("System is still initializing...");
+                return;
+            }
+        
+            uploadedFile = file;
+        
+            document.getElementById("results-section").classList.remove("active");
+            document.getElementById("error-message").classList.remove("active");
+        
+            const reader = new FileReader();
+            reader.onload = function (e) {
+                document.getElementById("preview-image").src = e.target.result;
+                document.getElementById("preview-section").classList.add("active");
+            };
+            reader.readAsDataURL(file);
+        }
+        
+        // --------------------
+        // SEARCH
+        // --------------------
+        function performSearch() {
+            if (!uploadedFile) return;
+        
+            const formData = new FormData();
+            formData.append("file", uploadedFile);
+        
+            document.getElementById("preview-section").classList.remove("active");
+            document.getElementById("loading-spinner").classList.add("active");
+        
+            fetch("/search", {
+                method: "POST",
+                body: formData
+            })
+                .then(res => res.json())
+                .then(data => {
+                    document.getElementById("loading-spinner").classList.remove("active");
+        
+                    if (!data.results || data.results.length === 0) {
+                        showError("No results found.");
+                        return;
+                    }
+        
+                    allResults = data.results;
+                    visibleCount = 10;
+                    renderResults();
+                })
+                .catch(() => {
+                    document.getElementById("loading-spinner").classList.remove("active");
+                    showError("Search failed.");
+                });
+        }
+        
+        // --------------------
+        // RENDER RESULTS
+        // --------------------
+        function renderResults() {
+            const grid = document.getElementById("image-grid");
+            const resultsSection = document.getElementById("results-section");
+            const resultsCount = document.getElementById("results-count");
+        
+            grid.innerHTML = "";
+        
+            const visible = allResults.slice(0, visibleCount);
+            resultsCount.textContent = `${allResults.length} results`;
+        
+            visible.forEach((result, index) => {
+                const similarity = Math.round(result.similarity_score);
+        
+                const card = document.createElement("div");
+                card.className = "image-card";
+        
+                card.innerHTML = `
+                    <div class="rank-badge">#${index + 1}</div>
+                    <div class="image-card-image-wrapper">
+                        <img src="${result.image_url}" 
+                             class="image-card-image" 
+                             loading="lazy">
+                    </div>
+                    <div class="image-card-info">
+                        <div class="image-card-category">
+                            ${formatCategory(result.category)}
+                        </div>
+                        <div class="image-card-similarity">
+                            <span>${similarity}%</span>
+                            <div class="similarity-bar">
+                                <div class="similarity-fill" style="width:${similarity}%"></div>
+                            </div>
+                        </div>
+                    </div>
+                `;
+        
+                grid.appendChild(card);
+            });
+        
+            // LOAD MORE BUTTON
+            if (visibleCount < allResults.length) {
+                const btn = document.createElement("button");
+                btn.textContent = "Load More";
+                btn.className = "btn btn-primary";
+                btn.style.margin = "30px auto";
+                btn.style.display = "block";
+        
+                btn.onclick = function () {
+                    visibleCount += 10;
+                    renderResults();
+                };
+        
+                grid.appendChild(btn);
+            }
+        
+            resultsSection.classList.add("active");
+        }
+        
+        // --------------------
+        // ERROR
+        // --------------------
+        function showError(msg) {
+            const error = document.getElementById("error-message");
+            error.textContent = msg;
+            error.classList.add("active");
+        }
+        
+        // --------------------
+        // RESET
+        // --------------------
+        function resetSearch() {
+            uploadedFile = null;
+            document.getElementById("file-input").value = "";
+            document.getElementById("preview-section").classList.remove("active");
+            document.getElementById("results-section").classList.remove("active");
+            document.getElementById("error-message").classList.remove("active");
+        }
+        </script>
+        
+</body>
+</html>
