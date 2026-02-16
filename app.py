@@ -237,4 +237,5 @@ def serve_dataset_image(category, image_name):
 
 if __name__ == "__main__":
     initialize_visual_search()
-    app.run(host="0.0.0.0", port=7860)
+    app.run(host="0.0.0.0", port=PORT)
+
