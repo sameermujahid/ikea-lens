@@ -1,0 +1,6 @@
+flask
+torch
+open-clip-torch
+chromadb
+pillow
+numpy
