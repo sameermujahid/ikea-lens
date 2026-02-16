@@ -1,7 +1,6 @@
 flask
 torch
-open-clip-torch
-chromadb==0.4.24
-pydantic<2
-pillow
-numpy==1.26.4
+open_clip_torch
+chromadb
+numpy
+Pillow
