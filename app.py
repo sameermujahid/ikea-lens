@@ -16,11 +16,12 @@ from concurrent.futures import ThreadPoolExecutor
 
 DATASET_PATH = "dataset"
 UPLOAD_FOLDER = "uploads"
-PORT = int(os.environ.get("PORT", 10000))  # Render default
+PORT = int(os.environ.get("PORT", 10000))
 
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 
-device = "cuda" if torch.cuda.is_available() else "cpu"
+# FORCE CPU (Render has no GPU)
+device = "cpu"
 
 # ====================================
 # FLASK INIT
@@ -35,23 +36,25 @@ collection = None
 
 initialization_status = "Initializing..."
 initialization_progress = 0
-initialization_start_time = time.time()
 
 # ====================================
-# LOAD MODEL
+# LOAD LIGHTWEIGHT MODEL (RN50)
 # ====================================
 
 def load_model():
     global model, preprocess
 
-    print("🔄 Loading OpenCLIP model...")
+    print("🔄 Loading OpenCLIP RN50 (lightweight)...")
+
     model, _, preprocess = open_clip.create_model_and_transforms(
-        "ViT-B-32",
+        "RN50",
         pretrained="openai"
     )
+
     model.to(device)
     model.eval()
-    print("✅ OpenCLIP Loaded")
+
+    print("✅ RN50 Loaded")
 
 # ====================================
 # EMBEDDING FUNCTION
@@ -63,11 +66,13 @@ def generate_embedding(image):
     with torch.no_grad():
         features = model.encode_image(image)
 
+    # Normalize
     features = features / features.norm(dim=-1, keepdim=True)
+
     return features.cpu().numpy().flatten()
 
 # ====================================
-# INITIALIZATION (BACKGROUND SAFE)
+# INITIALIZATION (SAFE FOR RENDER)
 # ====================================
 
 def initialize_visual_search():
@@ -81,7 +86,7 @@ def initialize_visual_search():
 
         load_model()
 
-        initialization_status = "Connecting to database..."
+        initialization_status = "Connecting to ChromaDB..."
         initialization_progress = 20
 
         client = chromadb.PersistentClient(path="chroma_db")
@@ -96,14 +101,14 @@ def initialize_visual_search():
         existing_ids = set(collection.get()["ids"])
 
         initialization_status = "Scanning dataset..."
-        initialization_progress = 30
-
-        all_images = []
+        initialization_progress = 40
 
         if not os.path.exists(DATASET_PATH):
             print("⚠ Dataset folder not found")
             initialization_status = "Dataset not found"
             return
+
+        all_images = []
 
         for category in os.listdir(DATASET_PATH):
             category_path = os.path.join(DATASET_PATH, category)
@@ -123,16 +128,17 @@ def initialize_visual_search():
             initialization_progress = 100
             return
 
-        print(f"🆕 New images to process: {len(all_images)}")
+        print(f"🆕 Processing {len(all_images)} images...")
 
         initialization_status = "Embedding images..."
-        initialization_progress = 50
+        initialization_progress = 60
 
         def process_image(data):
             image_id, image_path, category, image_name = data
             try:
                 image = Image.open(image_path).convert("RGB")
                 embedding = generate_embedding(image)
+
                 return {
                     "id": image_id,
                     "embedding": embedding.tolist(),
@@ -147,8 +153,9 @@ def initialize_visual_search():
 
         results = []
 
-        with ThreadPoolExecutor(max_workers=4):  # reduced workers for Render free tier
-            for result in map(process_image, all_images):
+        # VERY IMPORTANT: keep workers low for Render
+        with ThreadPoolExecutor(max_workers=2) as executor:
+            for result in executor.map(process_image, all_images):
                 if result:
                     results.append(result)
 
@@ -182,7 +189,7 @@ def status():
         "collection_ready": collection is not None,
         "initialization_status": initialization_status,
         "initialization_progress": initialization_progress,
-        "can_search": collection is not None
+        "can_search": collection is not None and model is not None
     })
 
 @app.route("/search", methods=["POST"])
@@ -214,6 +221,7 @@ def search():
         for i in range(len(results["ids"][0])):
             metadata = results["metadatas"][0][i]
             distance = results["distances"][0][i]
+
             similarity_score = max(0, (1 - distance) * 100)
 
             response_results.append({
@@ -237,8 +245,5 @@ def serve_dataset_image(category, image_name):
 # ====================================
 
 if __name__ == "__main__":
-    # Start heavy ML initialization in background
     threading.Thread(target=initialize_visual_search, daemon=True).start()
-
-    # Start Flask immediately (critical for Render)
     app.run(host="0.0.0.0", port=PORT)
