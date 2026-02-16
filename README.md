@@ -180,6 +180,76 @@ Default port:
 ```
 http://localhost:10000
 ```
+Here’s the section you can **add to your README.md** under a new heading like:
+
+---
+
+## First Run Behavior (Important)
+
+When you start the application for the first time, you will see logs like this in the terminal:
+
+```
+INFO:werkzeug:127.0.0.1 - - [16/Feb/2026 17:10:16] "GET /status HTTP/1.1" 200 -
+🔄 Loading OpenCLIP model...
+✅ OpenCLIP Loaded
+🆕 New collection created
+🆕 New images to process: 1093
+```
+
+At this stage:
+
+* The model is loading
+* ChromaDB is creating a new collection
+* The system is scanning your dataset
+* Image embeddings are being generated
+
+You should wait until you see:
+
+```
+✅ Added 1093 images
+```
+
+Only after this message appears:
+
+* All image embeddings are stored in ChromaDB
+* The system becomes fully ready
+* Search functionality will work correctly
+
+---
+
+### Why This Happens
+
+On the first run:
+
+1. The application scans the `dataset/` folder
+2. Generates embeddings for every image
+3. Stores them in ChromaDB (persistent storage)
+
+This process can take time depending on:
+
+* Number of images
+* CPU/GPU availability
+* Deployment environment
+
+---
+
+### What Happens After First Run
+
+Once embeddings are added and stored:
+
+* They are saved inside the `chroma_db/` folder
+* On next startup, the system loads the existing collection
+* It does NOT re-embed images
+* It only embeds new images if added
+
+You will then see:
+
+```
+✅ Existing collection loaded
+✅ No new images to embed
+```
+
+This makes subsequent startups much faster.
 
 ---
 
