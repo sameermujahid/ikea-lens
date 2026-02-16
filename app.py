@@ -1,6 +1,4 @@
 import os
-import time
-import threading
 import torch
 import open_clip
 import chromadb
@@ -8,7 +6,6 @@ import numpy as np
 from PIL import Image
 from flask import Flask, request, jsonify, render_template, send_file
 from werkzeug.utils import secure_filename
-from concurrent.futures import ThreadPoolExecutor
 
 # ====================================
 # CONFIG
@@ -20,8 +17,7 @@ PORT = int(os.environ.get("PORT", 10000))
 
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 
-# FORCE CPU (Render has no GPU)
-device = "cpu"
+device = "cpu"  # Render has no GPU
 
 # ====================================
 # FLASK INIT
@@ -34,17 +30,17 @@ model = None
 preprocess = None
 collection = None
 
-initialization_status = "Initializing..."
-initialization_progress = 0
-
 # ====================================
-# LOAD LIGHTWEIGHT MODEL (RN50)
+# SAFE MODEL LOADER (LAZY LOAD)
 # ====================================
 
 def load_model():
     global model, preprocess
 
-    print("🔄 Loading OpenCLIP RN50 (lightweight)...")
+    if model is not None:
+        return
+
+    print("🔄 Loading OpenCLIP RN50...")
 
     model, _, preprocess = open_clip.create_model_and_transforms(
         "RN50",
@@ -54,7 +50,28 @@ def load_model():
     model.to(device)
     model.eval()
 
-    print("✅ RN50 Loaded")
+    print("✅ Model Loaded")
+
+# ====================================
+# SAFE CHROMA INIT (LAZY LOAD)
+# ====================================
+
+def init_chroma():
+    global collection
+
+    if collection is not None:
+        return
+
+    print("🔄 Initializing ChromaDB...")
+
+    client = chromadb.PersistentClient(path="chroma_db")
+
+    try:
+        collection = client.get_collection("image_embeddings")
+        print("✅ Existing collection loaded")
+    except:
+        collection = client.create_collection("image_embeddings")
+        print("🆕 New collection created")
 
 # ====================================
 # EMBEDDING FUNCTION
@@ -66,113 +83,8 @@ def generate_embedding(image):
     with torch.no_grad():
         features = model.encode_image(image)
 
-    # Normalize
     features = features / features.norm(dim=-1, keepdim=True)
-
     return features.cpu().numpy().flatten()
-
-# ====================================
-# INITIALIZATION (SAFE FOR RENDER)
-# ====================================
-
-def initialize_visual_search():
-    global collection, initialization_status, initialization_progress
-
-    try:
-        print("🚀 Initializing Visual Search System...")
-
-        initialization_status = "Loading model..."
-        initialization_progress = 10
-
-        load_model()
-
-        initialization_status = "Connecting to ChromaDB..."
-        initialization_progress = 20
-
-        client = chromadb.PersistentClient(path="chroma_db")
-
-        try:
-            collection = client.get_collection("image_embeddings")
-            print("✅ Existing collection loaded")
-        except:
-            collection = client.create_collection("image_embeddings")
-            print("🆕 New collection created")
-
-        existing_ids = set(collection.get()["ids"])
-
-        initialization_status = "Scanning dataset..."
-        initialization_progress = 40
-
-        if not os.path.exists(DATASET_PATH):
-            print("⚠ Dataset folder not found")
-            initialization_status = "Dataset not found"
-            return
-
-        all_images = []
-
-        for category in os.listdir(DATASET_PATH):
-            category_path = os.path.join(DATASET_PATH, category)
-            if not os.path.isdir(category_path):
-                continue
-
-            for image_name in os.listdir(category_path):
-                image_id = f"{category}_{image_name}"
-
-                if image_id not in existing_ids:
-                    image_path = os.path.join(category_path, image_name)
-                    all_images.append((image_id, image_path, category, image_name))
-
-        if not all_images:
-            print("✅ No new images to embed")
-            initialization_status = "Ready"
-            initialization_progress = 100
-            return
-
-        print(f"🆕 Processing {len(all_images)} images...")
-
-        initialization_status = "Embedding images..."
-        initialization_progress = 60
-
-        def process_image(data):
-            image_id, image_path, category, image_name = data
-            try:
-                image = Image.open(image_path).convert("RGB")
-                embedding = generate_embedding(image)
-
-                return {
-                    "id": image_id,
-                    "embedding": embedding.tolist(),
-                    "metadata": {
-                        "category": category,
-                        "image_name": image_name
-                    }
-                }
-            except Exception as e:
-                print(f"❌ Error: {image_path} → {e}")
-                return None
-
-        results = []
-
-        # VERY IMPORTANT: keep workers low for Render
-        with ThreadPoolExecutor(max_workers=2) as executor:
-            for result in executor.map(process_image, all_images):
-                if result:
-                    results.append(result)
-
-        if results:
-            collection.add(
-                embeddings=[r["embedding"] for r in results],
-                ids=[r["id"] for r in results],
-                metadatas=[r["metadata"] for r in results]
-            )
-            print(f"✅ Added {len(results)} images")
-
-        initialization_status = "Ready"
-        initialization_progress = 100
-
-    except Exception as e:
-        print("🔥 Initialization crashed:", e)
-        initialization_status = "Initialization failed"
 
 # ====================================
 # ROUTES
@@ -186,20 +98,18 @@ def home():
 def status():
     return jsonify({
         "model_loaded": model is not None,
-        "collection_ready": collection is not None,
-        "initialization_status": initialization_status,
-        "initialization_progress": initialization_progress,
-        "can_search": collection is not None and model is not None
+        "collection_ready": collection is not None
     })
 
 @app.route("/search", methods=["POST"])
 def search():
 
-    if collection is None or model is None:
-        return jsonify({"error": "System not ready"}), 503
-
     if "file" not in request.files:
         return jsonify({"error": "No file uploaded"}), 400
+
+    # Lazy load model + DB
+    load_model()
+    init_chroma()
 
     file = request.files["file"]
     filename = secure_filename(file.filename)
@@ -245,5 +155,5 @@ def serve_dataset_image(category, image_name):
 # ====================================
 
 if __name__ == "__main__":
-    threading.Thread(target=initialize_visual_search, daemon=True).start()
+    print("🚀 Starting IKEA Lens (Render Safe Mode)")
     app.run(host="0.0.0.0", port=PORT)
