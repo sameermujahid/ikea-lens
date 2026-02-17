@@ -373,3 +373,5 @@ Frontend:
 * Vanilla JavaScript
 
 ---
+<img width="1582" height="817" alt="Screenshot 2026-02-16 171656" src="https://github.com/user-attachments/assets/ce7f21c5-9bbc-48df-954c-b91d77aff670" />
+<img width="1582" height="820" alt="Screenshot 2026-02-16 171710" src="https://github.com/user-attachments/assets/bdad6197-9b1c-4061-8255-0f45803b2db7" />
